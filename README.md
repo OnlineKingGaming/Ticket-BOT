@@ -60,7 +60,7 @@ The setup command allows you to configure the ticket system and log channel.
 Use the following command to set up a ticket variant:
 
 ```sh
-/setup ticket --variant_name <name> --description <description> --role <role> --questions <number> [--emoji <emoji>] [--category <category>]
+/setup ticket variant_name <name> description <description> role <role> questions <number> [emoji <emoji>] [category <category>]
 ```
 
 - `variant_name`: The name of the ticket Type.
