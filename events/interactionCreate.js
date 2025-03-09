@@ -108,9 +108,17 @@ module.exports = {
                 }
             } else if (interaction.customId.startsWith('closeTicket_')) {
                 const channelId = interaction.customId.split('_')[1];
+                const channel = interaction.guild.channels.cache.get(channelId);
+                if (!channel) {
+                    return interaction.reply({ content: 'Ticket channel not found.', ephemeral: true });
+                }
                 await closeTicket(interaction, channelId, null);
             } else if (interaction.customId.startsWith('closeTicketWithReason_')) {
                 const channelId = interaction.customId.split('_')[1];
+                const channel = interaction.guild.channels.cache.get(channelId);
+                if (!channel) {
+                    return interaction.reply({ content: 'Ticket channel not found.', ephemeral: true });
+                }
                 const modal = new ModalBuilder()
                     .setCustomId(`closeTicketReasonModal_${channelId}`)
                     .setTitle('Close Ticket with Reason');
@@ -126,6 +134,10 @@ module.exports = {
                 await interaction.showModal(modal);
             } else if (interaction.customId.startsWith('saveTranscript_')) {
                 const channelId = interaction.customId.split('_')[1];
+                const channel = interaction.guild.channels.cache.get(channelId);
+                if (!channel) {
+                    return interaction.reply({ content: 'Ticket channel not found.', ephemeral: true });
+                }
                 await saveTranscript(interaction, channelId);
             }
         } else if (interaction instanceof ModalSubmitInteraction) {

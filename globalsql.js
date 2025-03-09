@@ -225,6 +225,9 @@ async function closeTicket(interaction, channelId, reason = null) {
   try {
     await interaction.deferReply({ ephemeral: true });
     const channel = interaction.guild.channels.cache.get(channelId);
+    if (!channel) {
+      return interaction.editReply({ content: 'Ticket channel not found.', ephemeral: true });
+    }
     if (channel) {
       const msgs = await channel.messages.fetch({ limit: 10 });
       const botMessage = msgs.find(msg => msg.author.bot && msg.embeds.length > 0 && msg.mentions.users.size > 0);
