@@ -5,15 +5,15 @@
 ### Prerequisites
 
 - Node.js (v14 or higher)
-- PostgreSQL (or any other supported database)
+- Mariadb (or any other database)
 
 ### Installation
 
 1. Clone the repository:
 
     ```sh
-    git clone https://github.com/yourusername/discord-ticket-system.git
-    cd discord-ticket-system
+    git clone https://github.com/OnlineKingGaming/Ticket-BOT.git
+    cd Ticket-BOT
     ```
 
 2. Install dependencies:
@@ -39,11 +39,11 @@
         createdb your_database_name
         ```
 
-    - Run the database migrations:
+5. Initialize BOT and Commands:
 
-        ```sh
-        npm run migrate
-        ```
+    ```sh
+    npm run init
+    ```
 
 5. Start the application:
 
@@ -55,10 +55,10 @@
 
 - `DB_HOST`: The hostname of your database server.
 - `DB_PORT`: The port number your database server is listening on.
-- `DB_USER`: The username for your database.
-- `DB_PASSWORD`: The password for your database.
+- `MYSQL_USER`: The username for your database.
+- `MYSQL_PASSWORD`: The password for your database.
 - `DB_NAME`: The name of your database.
-- `DISCORD_TOKEN`: Your Discord bot token.
+- `TOKEN`: Your Discord bot token.
 
 ### Running Tests
 
