@@ -25,12 +25,22 @@ pool.on('error', (err) => {
   // Handle the error appropriately, e.g., reconnect or exit process
 });
 
-// Function to execute a query
+// Function to execute a query with connection pooling
 function executeQuery(query, params = []) {
   return new Promise((resolve, reject) => {
-    pool.query(query, params, (err, result) => {
-      if (err) return reject(err);
-      resolve(result);
+    pool.getConnection((err, connection) => {
+      if (err) {
+        console.error('Error getting MySQL connection:', err);
+        return reject(err);
+      }
+      connection.query(query, params, (err, result) => {
+        connection.release();
+        if (err) {
+          console.error('Error executing MySQL query:', err);
+          return reject(err);
+        }
+        resolve(result);
+      });
     });
   });
 }
@@ -196,57 +206,62 @@ async function createTicketChannel(interaction, variantName, fields = null) {
 
 // Function to close ticket
 async function closeTicket(interaction, channelId, reason = null) {
-  await interaction.deferReply({ ephemeral: true });
-  const channel = interaction.guild.channels.cache.get(channelId);
-  if (channel) {
-    const msgs = await channel.messages.fetch({ limit: 10 });
-    const botMessage = msgs.find(msg => msg.author.bot && msg.embeds.length > 0 && msg.mentions.users.size > 0);
-    const member = botMessage ? botMessage.mentions.users.first() : null;
-    const embed = new EmbedBuilder()
-    .setTitle('Ticket Closed')
-    .setDescription(`The ticket has been closed by ${interaction.user.username}.`)
-    .addFields({ name: 'Reason', value: reason || 'No reason provided' }) // Ensure reason is a valid string
-    .setColor(0xFF0000)
-    .setTimestamp();
-
-  await channel.send({ embeds: [embed] });
-
-    const messages = await channel.messages.fetch({ limit: 100 });
-    const transcript = messages.map(msg => ({
-      author: msg.author.tag,
-      content: msg.content,
-      timestamp: msg.createdTimestamp
-    }));
-
-    await saveTicketTranscript(interaction.guild.id, channelId, transcript);
-
-    const transcriptText = transcript.map(msg => `[${new Date(msg.timestamp).toLocaleString()}] ${msg.author}: ${msg.content}`).join('\n');
-    const filePath = path.join(__dirname, `transcript_${channelId}.txt`);
-    fs.writeFileSync(filePath, transcriptText);
-
-    const attachment = new AttachmentBuilder(filePath);
-
-    if (member) {
-      const user = await interaction.guild.members.fetch(member.id);
-      const dmEmbed = new EmbedBuilder()
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    const channel = interaction.guild.channels.cache.get(channelId);
+    if (channel) {
+      const msgs = await channel.messages.fetch({ limit: 10 });
+      const botMessage = msgs.find(msg => msg.author.bot && msg.embeds.length > 0 && msg.mentions.users.size > 0);
+      const member = botMessage ? botMessage.mentions.users.first() : null;
+      const embed = new EmbedBuilder()
         .setTitle('Ticket Closed')
-        .setDescription(`Your ticket on server ${interaction.guild.name} has been closed by ${interaction.user.username}.`)
+        .setDescription(`The ticket has been closed by ${interaction.user.username}.`)
         .addFields({ name: 'Reason', value: reason || 'No reason provided' }) // Ensure reason is a valid string
         .setColor(0xFF0000)
         .setTimestamp();
 
-      await user.send({ embeds: [dmEmbed], files: [attachment] });
+      await channel.send({ embeds: [embed] });
+
+      const messages = await channel.messages.fetch({ limit: 100 });
+      const transcript = messages.map(msg => ({
+        author: msg.author.tag,
+        content: msg.content,
+        timestamp: msg.createdTimestamp
+      }));
+
+      await saveTicketTranscript(interaction.guild.id, channelId, transcript);
+
+      const transcriptText = transcript.map(msg => `[${new Date(msg.timestamp).toLocaleString()}] ${msg.author}: ${msg.content}`).join('\n');
+      const filePath = path.join(__dirname, `transcript_${channelId}.txt`);
+      fs.writeFileSync(filePath, transcriptText);
+
+      const attachment = new AttachmentBuilder(filePath);
+
+      if (member) {
+        const user = await interaction.guild.members.fetch(member.id);
+        const dmEmbed = new EmbedBuilder()
+          .setTitle('Ticket Closed')
+          .setDescription(`Your ticket on server ${interaction.guild.name} has been closed by ${interaction.user.username}.`)
+          .addFields({ name: 'Reason', value: reason || 'No reason provided' }) // Ensure reason is a valid string
+          .setColor(0xFF0000)
+          .setTimestamp();
+
+        await user.send({ embeds: [dmEmbed], files: [attachment] });
+      }
+
+      fs.unlinkSync(filePath);
+
+      setTimeout(() => { if (channel) channel.delete() }, 5000);
+      await interaction.editReply({ content: `Ticket has been closed and will automatically delete soon. (ID: ${channel.id})`, ephemeral: true });
+
+      // Log the ticket closure
+      await logMessage(interaction.guild, 'Ticket Closed', `Ticket closed by ${interaction.user.tag} in ${channel} (ID: ${channel.id}). Reason: ${reason || 'No reason provided'}`, 0xFF0000);
+    } else {
+      await interaction.editReply({ content: `Ticket channel not found.`, ephemeral: true });
     }
-
-    fs.unlinkSync(filePath);
-
-    setTimeout(() => {if (channel) channel.delete()}, 5000);
-    await interaction.editReply({ content: `Ticket has been closed and will automatically delete soon. (ID: ${channel.id})`, ephemeral: true });
-
-    // Log the ticket closure
-    await logMessage(interaction.guild, 'Ticket Closed', `Ticket closed by ${interaction.user.tag} in ${channel} (ID: ${channel.id}). Reason: ${reason || 'No reason provided'}`, 0xFF0000);
-  } else {
-    await interaction.editReply({ content: `Ticket channel not found.`, ephemeral: true });
+  } catch (error) {
+    console.error('Error closing ticket:', error);
+    await interaction.editReply({ content: `An error occurred while closing the ticket. Please try again later.`, ephemeral: true });
   }
 }
 
