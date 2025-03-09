@@ -6,7 +6,6 @@ module.exports = {
     once: true,
     async execute(client) {
         console.log(`Ready! Logged in as ${client.user.tag}`);
-        await checkExpiredBans(client);
 
         function Status2() {
             client.user.setPresence({

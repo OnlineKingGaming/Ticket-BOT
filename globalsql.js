@@ -1,12 +1,15 @@
 const mysql = require("mysql");
-const axios = require("axios");
+const { PermissionsBitField, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, StringSelectMenuBuilder } = require('discord.js');
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 
 const connection = mysql.createConnection({
-  host: "localhost",
+  host: process.env.DB_HOST,
   user: process.env.MYSQL_USER,
   password: process.env.MYSQL_PASSWORD,
-  database: "SmartSystems",
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
   timezone: '+01:00' // Set timezone to UTC+1
 });
 
@@ -31,42 +34,52 @@ function executeQuery(query, params = []) {
   });
 }
 
-// Function to save setup data
-async function saveSetupData(guildId, mutedRoleId) {
+// Function to save ticket variant
+async function saveTicketVariant(guildId, variantName, description, emoji, roleId, categoryId) {
   const query = `
-    INSERT INTO setup (guild_id, muted_role_id)
-    VALUES (?, ?)
-    ON DUPLICATE KEY UPDATE muted_role_id = VALUES(muted_role_id)
+    INSERT INTO ticket_variants (guild_id, variant_name, description, emoji, role_id, category_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE description = VALUES(description), emoji = VALUES(emoji), role_id = VALUES(role_id), category_id = VALUES(category_id)
   `;
-  await executeQuery(query, [guildId, mutedRoleId]);
+  await executeQuery(query, [guildId, variantName, description, emoji, roleId, categoryId]);
 }
 
-// Function to get setup data
-async function getSetupData(guildId) {
-  const query = `SELECT * FROM setup WHERE guild_id = ?`;
+// Function to get ticket variants
+async function getTicketVariants(guildId) {
+  const query = `SELECT * FROM ticket_variants WHERE guild_id = ?`;
   const results = await executeQuery(query, [guildId]);
-  return results[0];
+  return results;
 }
 
-// Function to update command status
-async function updateCommandStatus(guildId, command, status) {
+// Function to save ticket questions
+async function saveTicketQuestions(guildId, variantName, questionIndex, questionTitle, questionPlaceholder, questionType, question) {
   const query = `
-    INSERT INTO command_status (guild_id, command, status)
-    VALUES (?, ?, ?)
-    ON DUPLICATE KEY UPDATE status = VALUES(status)
+    INSERT INTO ticket_questions (guild_id, variant_name, question_index, question_title, question_placeholder, question_type, question)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE question_title = VALUES(question_title), question_placeholder = VALUES(question_placeholder), question_type = VALUES(question_type), question = VALUES(question)
   `;
-  await executeQuery(query, [guildId, command, status]);
+  await executeQuery(query, [guildId, variantName, questionIndex, questionTitle, questionPlaceholder, questionType, question]);
 }
 
-// Function to check if a command is enabled
-async function isCommandEnabled(guildId, command) {
-  const query = `SELECT status FROM command_status WHERE guild_id = ? AND command = ?`;
-  const results = await executeQuery(query, [guildId, command]);
-  return results.length > 0 ? results[0].status : true;
+// Function to get ticket questions
+async function getTicketQuestions(guildId, variantName) {
+  const query = `SELECT * FROM ticket_questions WHERE guild_id = ? AND variant_name = ? ORDER BY question_index`;
+  const results = await executeQuery(query, [guildId, variantName]);
+  return results;
 }
 
-// Function to set log channel
-async function setLogChannel(guildId, channelId) {
+// Function to save ticket transcript
+async function saveTicketTranscript(guildId, channelId, messages) {
+  const query = `
+    INSERT INTO ticket_transcripts (guild_id, channel_id, messages)
+    VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE messages = VALUES(messages)
+  `;
+  await executeQuery(query, [guildId, channelId, JSON.stringify(messages)]);
+}
+
+// Function to save log channel
+async function saveLogChannel(guildId, channelId) {
   const query = `
     INSERT INTO log_channels (guild_id, channel_id)
     VALUES (?, ?)
@@ -82,175 +95,219 @@ async function getLogChannel(guildId) {
   return results.length > 0 ? results[0].channel_id : null;
 }
 
-// Function to save punishment data
-async function savePunishmentData(guildId, userId, type, reason, expiresAt) {
-  const formattedExpiresAt = expiresAt ? new Date(expiresAt).toISOString().slice(0, 19).replace('T', ' ') : null;
-  const query = `
-    INSERT INTO punishments (guild_id, user_id, type, reason, expires_at)
-    VALUES (?, ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE reason = VALUES(reason), expires_at = VALUES(expires_at)
-  `;
-  const result = await executeQuery(query, [guildId, userId, type, reason, formattedExpiresAt]);
-  console.log(result.insertId)
-  return result.insertId;
-}
-
-// Function to remove punishment data
-async function removePunishmentData(guildId, userId, type, id = null) {
-  let query = `DELETE FROM punishments WHERE guild_id = ? AND user_id = ? AND type = ?`;
-  const params = [guildId, userId, type];
-  if (id !== null) {
-    query += ` AND id = ?`;
-    params.push(id);
-  }
-  const result = await executeQuery(query, params);
-  return result;
-}
-
-// Function to check if a user is punished
-async function isUserPunished(guildId, userId, type) {
-  const query = `SELECT * FROM punishments WHERE guild_id = ? AND user_id = ? AND type = ?`;
-  const results = await executeQuery(query, [guildId, userId, type]);
-  return results.length > 0 && (!results[0].expires_at || new Date(results[0].expires_at) > new Date());
-}
-
-// Function to check if a mute has expired
-async function checkExpiredMutes(client) {
-  const query = `SELECT * FROM punishments WHERE type = 'mute' AND expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP`;
-  const results = await executeQuery(query);
-  for (const result of results) {
-    const guild = client.guilds.cache.get(result.guild_id);
-    if (guild) {
-      const member = guild.members.cache.get(result.user_id);
-      const setupData = await getSetupData(result.guild_id);
-      if (member && setupData && setupData.muted_role_id) {
-        const muteRole = guild.roles.cache.get(setupData.muted_role_id);
-        if (muteRole) {
-          await member.roles.remove(muteRole);
-        }
-      }
+// Function to log message
+async function logMessage(guild, title, description, color) {
+  const logChannelId = await getLogChannel(guild.id);
+  if (logChannelId) {
+    const logChannel = guild.channels.cache.get(logChannelId);
+    if (logChannel) {
+      const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setColor(color)
+        .setTimestamp();
+      await logChannel.send({ embeds: [embed] });
     }
-    await removePunishmentData(result.guild_id, result.user_id, 'mute');
   }
 }
 
-// Function to check if a ban has expired
-async function checkExpiredBans(client) {
-  const query = `SELECT * FROM punishments WHERE type = 'ban' AND expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP`;
-  const results = await executeQuery(query);
-  for (const result of results) {
-    await removePunishmentData(result.guild_id, result.user_id, 'ban');
+// Function to create ticket channel
+async function createTicketChannel(interaction, variantName, fields = null) {
+  const guild = interaction.guild;
+  const member = interaction.member;
+  const variant = await getTicketVariants(guild.id).then(variants => variants.find(v => v.variant_name === variantName));
+
+  if (!variant) {
+    return interaction.reply({ content: `Ticket variant "${variantName}" not found.`, ephemeral: true });
+  }
+
+  const role = guild.roles.cache.get(variant.role_id);
+  if (!role) {
+    return interaction.reply({ content: `Role with ID "${variant.role_id}" not found.`, ephemeral: true });
+  }
+
+  const channelOptions = {
+    name: `${variantName.toLowerCase()}-${member.user.username}`,
+    type: ChannelType.GuildText,
+    permissionOverwrites: [
+      {
+        id: guild.id,
+        deny: [PermissionsBitField.Flags.ViewChannel],
+      },
+      {
+        id: member.id,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      },
+      {
+        id: role.id,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory],
+      },
+    ],
+  };
+
+  if (variant.category_id) {
+    channelOptions.parent = variant.category_id;
+  }
+
+  const channel = await guild.channels.create(channelOptions);
+
+  const embed = new EmbedBuilder()
+    .setTitle('Ticket Created')
+    .setDescription(`A staff member will be with you shortly, ${member.user.username}.`)
+    .setThumbnail(member.guild.iconURL())
+    .setColor(0x00FF00)
+    .setTimestamp();
+
+  if (fields) {
+    const questions = await getTicketQuestions(guild.id, variantName);
+    questions.forEach((question, index) => {
+      const response = fields.getTextInputValue(`question_${index}`);
+      embed.addFields({ name: question.question_title, value: response });
+    });
+  }
+
+  const closeButton = new ButtonBuilder()
+    .setCustomId(`closeTicket_${channel.id}`)
+    .setLabel('Close Ticket')
+    .setStyle(ButtonStyle.Danger);
+
+  const closeWithReasonButton = new ButtonBuilder()
+    .setCustomId(`closeTicketWithReason_${channel.id}`)
+    .setLabel('Close with Reason')
+    .setStyle(ButtonStyle.Secondary);
+
+  const saveTranscriptButton = new ButtonBuilder()
+    .setCustomId(`saveTranscript_${channel.id}`)
+    .setLabel('Save Transcript')
+    .setStyle(ButtonStyle.Secondary);
+
+  const row = new ActionRowBuilder().addComponents(closeButton, closeWithReasonButton, saveTranscriptButton);
+
+  await channel.send({ embeds: [embed], components: [row], content: `<@${member.id}>` });
+
+  await interaction.reply({ content: `Ticket created: ${channel} (ID: ${channel.id})`, ephemeral: true });
+
+  // Log the ticket creation
+  await logMessage(guild, 'Ticket Created', `Ticket created by ${member.user.tag} in ${channel} (ID: ${channel.id}).`, 0x00FF00);
+
+  // Deselect the value in the embed
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId('selectTicketVariant')
+    .setPlaceholder('Select a ticket variant')
+    .setDisabled(true);
+
+  const rowDeselect = new ActionRowBuilder().addComponents(selectMenu);
+  await interaction.editReply({ components: [rowDeselect] });
+}
+
+// Function to close ticket
+async function closeTicket(interaction, channelId, reason = null) {
+  await interaction.deferReply({ ephemeral: true });
+  const channel = interaction.guild.channels.cache.get(channelId);
+  if (channel) {
+    const msgs = await channel.messages.fetch({ limit: 10 });
+    const botMessage = msgs.find(msg => msg.author.bot && msg.embeds.length > 0 && msg.mentions.users.size > 0);
+    const member = botMessage ? botMessage.mentions.users.first() : null;
+    if (reason) {
+      const embed = new EmbedBuilder()
+        .setTitle('Ticket Closed')
+        .setDescription(`The ticket has been closed by ${interaction.user.username}.`)
+        .addFields({ name: 'Reason', value: reason || 'No reason provided' }) // Ensure reason is a valid string
+        .setColor(0xFF0000)
+        .setTimestamp();
+
+      await channel.send({ embeds: [embed] });
+    }
+
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const transcript = messages.map(msg => ({
+      author: msg.author.tag,
+      content: msg.content,
+      timestamp: msg.createdTimestamp
+    }));
+
+    await saveTicketTranscript(interaction.guild.id, channelId, transcript);
+
+    const transcriptText = transcript.map(msg => `[${new Date(msg.timestamp).toLocaleString()}] ${msg.author}: ${msg.content}`).join('\n');
+    const filePath = path.join(__dirname, `transcript_${channelId}.txt`);
+    fs.writeFileSync(filePath, transcriptText);
+
+    const attachment = new AttachmentBuilder(filePath);
+
+    if (member) {
+      const user = await interaction.guild.members.fetch(member.id);
+      const dmEmbed = new EmbedBuilder()
+        .setTitle('Ticket Closed')
+        .setDescription(`Your ticket has been closed by ${interaction.user.username}.`)
+        .addFields({ name: 'Reason', value: reason || 'No reason provided' }) // Ensure reason is a valid string
+        .setColor(0xFF0000)
+        .setTimestamp();
+
+      await user.send({ embeds: [dmEmbed], files: [attachment] });
+    }
+
+    fs.unlinkSync(filePath);
+
+    setTimeout(() => {if (channel) channel.delete()}, 5000);
+    await interaction.editReply({ content: `Ticket has been closed and will automatically delete soon. (ID: ${channel.id})`, ephemeral: true });
+
+    // Log the ticket closure
+    await logMessage(interaction.guild, 'Ticket Closed', `Ticket closed by ${interaction.user.tag} in ${channel} (ID: ${channel.id}). Reason: ${reason || 'No reason provided'}`, 0xFF0000);
+  } else {
+    await interaction.editReply({ content: `Ticket channel not found.`, ephemeral: true });
   }
 }
 
-// Function to get punishment data for a user
-async function getPunishmentData(guildId, userId) {
-  const query = `SELECT * FROM punishments WHERE guild_id = ? AND user_id = ?`;
-  const results = await executeQuery(query, [guildId, userId]);
-  return results;
+// Function to save transcript
+async function saveTranscript(interaction, channelId) {
+  const channel = interaction.guild.channels.cache.get(channelId);
+  if (channel) {
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const transcript = messages.map(msg => ({
+      author: msg.author.tag,
+      content: msg.content,
+      timestamp: msg.createdTimestamp
+    }));
+
+    await saveTicketTranscript(interaction.guild.id, channelId, transcript);
+
+    const transcriptText = transcript.map(msg => `[${new Date(msg.timestamp).toLocaleString()}] ${msg.author}: ${msg.content}`).join('\n');
+    const filePath = path.join(__dirname, `transcript_${channelId}.txt`);
+    fs.writeFileSync(filePath, transcriptText);
+
+    const attachment = new AttachmentBuilder(filePath);
+
+    await channel.send({ content: 'Transcript saved:', files: [attachment] });
+
+    fs.unlinkSync(filePath);
+
+    await interaction.reply({ content: `Transcript saved for channel ${channel.name}.`, ephemeral: true });
+
+    // Log the transcript saving
+    await logMessage(interaction.guild, 'Transcript Saved', `Transcript saved for ${channel} by ${interaction.user.tag}.`, 0x00FF00);
+  } else {
+    await interaction.reply({ content: `Ticket channel not found.`, ephemeral: true });
+  }
 }
 
-// Function to get punishment data by ID
-async function getPunishmentById(guildId, userId, type, id) {
-  const query = `SELECT * FROM punishments WHERE guild_id = ? AND user_id = ? AND type = ? AND id = ?`;
-  const results = await executeQuery(query, [guildId, userId, type, id]);
-  return results[0];
-}
-
-// Function to save a note
-async function saveNote(guildId, userId, note) {
-  const query = `
-    INSERT INTO notes (guild_id, user_id, note)
-    VALUES (?, ?, ?)
-  `;
-  await executeQuery(query, [guildId, userId, note]);
-}
-
-// Function to get notes
-async function getNotes(guildId, userId) {
-  const query = `SELECT id, note FROM notes WHERE guild_id = ? AND user_id = ?`;
-  const results = await executeQuery(query, [guildId, userId]);
-  return results;
-}
-
-// Function to set welcome role
-async function setWelcomeRole(guildId, roleId) {
-  const query = `
-    INSERT INTO welcome_roles (guild_id, role_id)
-    VALUES (?, ?)
-    ON DUPLICATE KEY UPDATE role_id = VALUES(role_id)
-  `;
-  await executeQuery(query, [guildId, roleId]);
-}
-
-// Function to get welcome role
-async function getWelcomeRole(guildId) {
-  const query = `SELECT role_id FROM welcome_roles WHERE guild_id = ?`;
-  const results = await executeQuery(query, [guildId]);
-  return results.length > 0 ? results[0].role_id : null;
-}
-
-// Function to add a welcome role
-async function addWelcomeRole(guildId, roleId) {
-  const query = `
-    INSERT INTO welcome_roles (guild_id, role_id)
-    VALUES (?, ?)
-  `;
-  await executeQuery(query, [guildId, roleId]);
-}
-
-// Function to remove a welcome role
-async function removeWelcomeRole(guildId, roleId) {
-  const query = `DELETE FROM welcome_roles WHERE guild_id = ? AND role_id = ?`;
-  await executeQuery(query, [guildId, roleId]);
-}
-
-// Function to get welcome roles
-async function getWelcomeRoles(guildId) {
-  const query = `SELECT role_id FROM welcome_roles WHERE guild_id = ?`;
-  const results = await executeQuery(query, [guildId]);
-  return results.map(result => result.role_id);
-}
-
-// Function to set welcome channel
-async function setWelcomeChannel(guildId, channelId) {
-  const query = `
-    INSERT INTO welcome_channels (guild_id, channel_id)
-    VALUES (?, ?)
-    ON DUPLICATE KEY UPDATE channel_id = VALUES(channel_id)
-  `;
-  await executeQuery(query, [guildId, channelId]);
-}
-
-// Function to get welcome channel
-async function getWelcomeChannel(guildId) {
-  const query = `SELECT channel_id FROM welcome_channels WHERE guild_id = ?`;
-  const results = await executeQuery(query, [guildId]);
-  return results.length > 0 ? results[0].channel_id : null;
+// Function to get ticket transcript by ticket ID
+async function getTicketTranscript(guildId, channelId) {
+  const query = `SELECT messages FROM ticket_transcripts WHERE guild_id = ? AND channel_id = ?`;
+  const results = await executeQuery(query, [guildId, channelId]);
+  return results.length > 0 ? JSON.parse(results[0].messages) : null;
 }
 
 module.exports = {
   executeQuery,
-  saveSetupData,
-  getSetupData,
-  updateCommandStatus,
-  isCommandEnabled,
-  setLogChannel,
+  saveTicketVariant,
+  getTicketVariants,
+  saveTicketQuestions,
+  getTicketQuestions,
+  createTicketChannel,
+  closeTicket,
+  saveTranscript,
+  getTicketTranscript,
+  saveLogChannel,
   getLogChannel,
-  savePunishmentData,
-  removePunishmentData,
-  isUserPunished,
-  checkExpiredMutes,
-  checkExpiredBans,
-  getPunishmentData,
-  getPunishmentById,
-  saveNote,
-  getNotes,
-  setWelcomeRole,
-  getWelcomeRole,
-  addWelcomeRole,
-  removeWelcomeRole,
-  getWelcomeRoles,
-  setWelcomeChannel,
-  getWelcomeChannel,
+  logMessage,
 };
