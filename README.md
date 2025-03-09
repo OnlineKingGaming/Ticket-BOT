@@ -75,7 +75,7 @@ Use the following command to set up a ticket variant:
 Use the following command to set up a log channel:
 
 ```sh
-/setup log --channel <channel>
+/setup log channel <channel>
 ```
 
 - `channel`: The channel for logging.
