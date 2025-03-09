@@ -62,6 +62,22 @@ async function getTicketVariants(guildId) {
   return results;
 }
 
+// Function to update ticket variant
+async function updateTicketVariant(guildId, variantName, description, emoji, roleId, categoryId) {
+  const query = `
+    UPDATE ticket_variants
+    SET description = ?, emoji = ?, role_id = ?, category_id = ?
+    WHERE guild_id = ? AND variant_name = ?
+  `;
+  await executeQuery(query, [description, emoji, roleId, categoryId, guildId, variantName]);
+}
+
+// Function to delete ticket variant
+async function deleteTicketVariant(guildId, variantName) {
+  const query = `DELETE FROM ticket_variants WHERE guild_id = ? AND variant_name = ?`;
+  await executeQuery(query, [guildId, variantName]);
+}
+
 // Function to save ticket questions
 async function saveTicketQuestions(guildId, variantName, questionIndex, questionTitle, questionPlaceholder, questionType, question) {
   const query = `
@@ -308,6 +324,8 @@ module.exports = {
   executeQuery,
   saveTicketVariant,
   getTicketVariants,
+  updateTicketVariant,
+  deleteTicketVariant,
   saveTicketQuestions,
   getTicketQuestions,
   createTicketChannel,
