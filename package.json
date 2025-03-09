@@ -1,5 +1,5 @@
 {
-  "name": "smartchat",
+  "name": "ticketbot",
   "version": "1.0.0",
   "private": true,
   "description": "",
@@ -9,8 +9,8 @@
     "init": "node deploy.js",
     "test": "concurrently \"node deploy.js\" \"sleep 2 && node index.js\""
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Maverick",
+  "license": "MIT",
   "dependencies": {
     "axios": "^1.8.2",
     "body-parser": "^1.20.3",
