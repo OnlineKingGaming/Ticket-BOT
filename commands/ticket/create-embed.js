@@ -9,7 +9,19 @@ module.exports = {
             option.setName('variants')
                 .setDescription('Comma-separated list of ticket variant names to include in the embed')
                 .setRequired(false)
-                .setAutocomplete(true)),
+                .setAutocomplete(true))
+        .addStringOption(option => 
+            option.setName('title')
+                .setDescription('Title of the embed')
+                .setRequired(false))
+        .addStringOption(option => 
+            option.setName('description')
+                .setDescription('Description of the embed')
+                .setRequired(false))
+        .addStringOption(option => 
+            option.setName('color')
+                .setDescription('Color of the embed in HEX format (e.g., #00FF00)')
+                .setRequired(false)),
     async execute(interaction) {
         const variants = await getTicketVariants(interaction.guild.id);
         if (variants.length === 0) {
@@ -39,10 +51,14 @@ module.exports = {
             }
         }
 
+        const embedTitle = interaction.options.getString('title') || 'Create a Ticket';
+        const embedDescription = interaction.options.getString('description') || 'Please select a ticket variant from the menu below.';
+        const embedColor = interaction.options.getString('color') || '#00FF00';
+
         const embed = new EmbedBuilder()
-            .setTitle('Create a Ticket')
-            .setDescription('Please select a ticket variant from the menu below.')
-            .setColor(0x00FF00);
+            .setTitle(embedTitle)
+            .setDescription(embedDescription)
+            .setColor(embedColor);
         await interaction.reply({ content: "Embed created", ephemeral: true });
         await interaction.channel.send({ embeds: [embed], components: rows, ephemeral: false });
     },
