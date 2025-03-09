@@ -191,13 +191,6 @@ async function createTicketChannel(interaction, variantName, fields = null) {
   await logMessage(guild, 'Ticket Created', `Ticket created by ${member.user.tag} in ${channel} (ID: ${channel.id}).`, 0x00FF00);
 
   // Deselect the value in the embed
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId('selectTicketVariant')
-    .setPlaceholder('Select a ticket variant')
-    .setDisabled(true);
-
-  const rowDeselect = new ActionRowBuilder().addComponents(selectMenu);
-  await interaction.editReply({ components: [rowDeselect] });
 }
 
 // Function to close ticket
@@ -208,16 +201,14 @@ async function closeTicket(interaction, channelId, reason = null) {
     const msgs = await channel.messages.fetch({ limit: 10 });
     const botMessage = msgs.find(msg => msg.author.bot && msg.embeds.length > 0 && msg.mentions.users.size > 0);
     const member = botMessage ? botMessage.mentions.users.first() : null;
-    if (reason) {
-      const embed = new EmbedBuilder()
-        .setTitle('Ticket Closed')
-        .setDescription(`The ticket has been closed by ${interaction.user.username}.`)
-        .addFields({ name: 'Reason', value: reason || 'No reason provided' }) // Ensure reason is a valid string
-        .setColor(0xFF0000)
-        .setTimestamp();
+    const embed = new EmbedBuilder()
+    .setTitle('Ticket Closed')
+    .setDescription(`The ticket has been closed by ${interaction.user.username}.`)
+    .addFields({ name: 'Reason', value: reason || 'No reason provided' }) // Ensure reason is a valid string
+    .setColor(0xFF0000)
+    .setTimestamp();
 
-      await channel.send({ embeds: [embed] });
-    }
+  await channel.send({ embeds: [embed] });
 
     const messages = await channel.messages.fetch({ limit: 100 });
     const transcript = messages.map(msg => ({
@@ -238,7 +229,7 @@ async function closeTicket(interaction, channelId, reason = null) {
       const user = await interaction.guild.members.fetch(member.id);
       const dmEmbed = new EmbedBuilder()
         .setTitle('Ticket Closed')
-        .setDescription(`Your ticket has been closed by ${interaction.user.username}.`)
+        .setDescription(`Your ticket on server ${interaction.guild.name} has been closed by ${interaction.user.username}.`)
         .addFields({ name: 'Reason', value: reason || 'No reason provided' }) // Ensure reason is a valid string
         .setColor(0xFF0000)
         .setTimestamp();

@@ -1,5 +1,5 @@
-const { Events, ModalSubmitInteraction, ButtonInteraction, StringSelectMenuInteraction, AutocompleteInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
-const { createTicketChannel, closeTicket, getTicketQuestions, saveTranscript } = require('../globalsql');
+const { Events, ModalSubmitInteraction, ButtonInteraction, StringSelectMenuInteraction, AutocompleteInteraction, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { createTicketChannel, closeTicket, getTicketQuestions, saveTranscript, getTicketVariants } = require('../globalsql');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -40,10 +40,46 @@ module.exports = {
                         modal.addComponents(new ActionRowBuilder().addComponents(questionInput));
                     });
 
+                    const variants = await getTicketVariants(interaction.guild.id);
+                    if (variants.length === 0) {
+                        return interaction.reply({ content: 'No ticket variants found. Please set up ticket variants first.', ephemeral: true });
+                    }
+                    const oldOptions = interaction.message.components.map(row => row.components[0].options).flat();
+                    const filteredVariants = variants.filter(variant => oldOptions.some(option => option.value === variant.variant_name));
+            
+                    const rows = [];
+                    for (let i = 0; i < filteredVariants.length; i += 25) {
+                        const options = filteredVariants.slice(i, i + 25).map(variant => ({
+                            label: `${variant.emoji ? `${variant.emoji} ` : ''}${variant.variant_name}`,
+                            value: variant.variant_name,
+                            description: variant.description
+                        }));
+            
+                        if (options.length > 0) {
+                            const selectMenu = new StringSelectMenuBuilder()
+                                .setCustomId(`selectTicketVariant_${i / 25}`)
+                                .setPlaceholder('Select a ticket variant')
+                                .addOptions(options)
+                                .setMinValues(1)
+                                .setMaxValues(1);
+            
+                            rows.push(new ActionRowBuilder().addComponents(selectMenu));
+                        }
+                    }
+            
+                    const embed = new EmbedBuilder()
+                        .setTitle('Create a Ticket')
+                        .setDescription('Please select a ticket variant from the menu below.')
+                        .setColor(0x00FF00);
+            
                     await interaction.showModal(modal);
+
+                    await interaction.message.edit({ embeds: [embed], components: rows, ephemeral: false });
                 } else {
                     await createTicketChannel(interaction, variantName);
                 }
+
+                // Clear the placeholder
             }
         } else if (interaction instanceof ButtonInteraction) {
             if (interaction.customId.startsWith('createTicket_')) {

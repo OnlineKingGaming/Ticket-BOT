@@ -27,22 +27,24 @@ module.exports = {
                 description: variant.description
             }));
 
-            const selectMenu = new StringSelectMenuBuilder()
-                .setCustomId(`selectTicketVariant_${i / 25}`)
-                .setPlaceholder('Select a ticket variant')
-                .addOptions(options)
-                .setMinValues(1)
-                .setMaxValues(1);
+            if (options.length > 0) {
+                const selectMenu = new StringSelectMenuBuilder()
+                    .setCustomId(`selectTicketVariant_${i / 25}`)
+                    .setPlaceholder('Select a ticket variant')
+                    .addOptions(options)
+                    .setMinValues(1)
+                    .setMaxValues(1);
 
-            rows.push(new ActionRowBuilder().addComponents(selectMenu));
+                rows.push(new ActionRowBuilder().addComponents(selectMenu));
+            }
         }
 
         const embed = new EmbedBuilder()
             .setTitle('Create a Ticket')
             .setDescription('Please select a ticket variant from the menu below.')
             .setColor(0x00FF00);
-
-        await interaction.reply({ embeds: [embed], components: rows, ephemeral: false });
+        await interaction.reply({ content: "Embed created", ephemeral: true });
+        await interaction.channel.send({ embeds: [embed], components: rows, ephemeral: false });
     },
     async autocomplete(interaction) {
         const focusedValue = interaction.options.getFocused();

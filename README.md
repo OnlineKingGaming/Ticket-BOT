@@ -45,11 +45,40 @@
     npm run init
     ```
 
-5. Start the application:
+6. Start the application:
 
     ```sh
     npm start
     ```
+
+### Using the Setup Command
+
+The setup command allows you to configure the ticket system and log channel.
+
+#### Setting up a Ticket Variant
+
+Use the following command to set up a ticket variant:
+
+```sh
+/setup ticket --variant_name <name> --description <description> --role <role> --questions <number> [--emoji <emoji>] [--category <category>]
+```
+
+- `variant_name`: The name of the ticket Type.
+- `description`: A description for the ticket variant.
+- `role`: The role associated with this variant.
+- `questions`: The number of questions to ask (0-4).
+- `emoji` (optional): An emoji for the ticket variant.
+- `category` (optional): A category for the ticket variant.
+
+#### Setting up a Log Channel
+
+Use the following command to set up a log channel:
+
+```sh
+/setup log --channel <channel>
+```
+
+- `channel`: The channel for logging.
 
 ### Environment Variables
 
