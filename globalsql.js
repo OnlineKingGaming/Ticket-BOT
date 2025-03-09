@@ -4,22 +4,23 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
-const connection = mysql.createConnection({
+const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.MYSQL_USER,
   password: process.env.MYSQL_PASSWORD,
   port: process.env.DB_PORT,
   database: process.env.DB_NAME,
-  timezone: '+01:00' // Set timezone to UTC+1
+  charset: 'utf8mb4' // Add this line to support emojis
 });
 
-connection.connect(err => {
+pool.getConnection((err, connection) => {
   if (err) throw err;
   console.log("Connected to MySQL");
+  connection.release();
 });
 
 // Add error handling for the connection
-connection.on('error', (err) => {
+pool.on('error', (err) => {
   console.error('MySQL connection error:', err);
   // Handle the error appropriately, e.g., reconnect or exit process
 });
@@ -27,7 +28,7 @@ connection.on('error', (err) => {
 // Function to execute a query
 function executeQuery(query, params = []) {
   return new Promise((resolve, reject) => {
-    connection.query(query, params, (err, result) => {
+    pool.query(query, params, (err, result) => {
       if (err) return reject(err);
       resolve(result);
     });

@@ -66,37 +66,49 @@ module.exports = {
             await interaction.deferReply({ ephemeral: true });
             const questions = [];
             for (let i = 0; i < questionCount; i++) {
-                await interaction.followUp({ content: `Please provide the title for question ${i + 1}:`, ephemeral: true });
+                await interaction.editReply({ content: `Please provide the title for question ${i + 1}:`, ephemeral: true });
                 const questionTitle = await interaction.channel.awaitMessages({
                     filter: m => m.author.id === interaction.user.id,
                     max: 1,
                     time: 60000,
                     errors: ['time']
-                }).then(collected => collected.first().content).catch(() => null);
+                }).then(collected => {
+                    const message = collected.first();
+                    message.delete();
+                    return message.content;
+                }).catch(() => null);
 
                 if (!questionTitle) {
                     return interaction.followUp({ content: 'You did not provide a question title in time.', ephemeral: true });
                 }
 
-                await interaction.followUp({ content: `Please provide the placeholder for question ${i + 1}:`, ephemeral: true });
+                await interaction.editReply({ content: `Please provide the placeholder for question ${i + 1}:`, ephemeral: true });
                 const questionPlaceholder = await interaction.channel.awaitMessages({
                     filter: m => m.author.id === interaction.user.id,
                     max: 1,
                     time: 60000,
                     errors: ['time']
-                }).then(collected => collected.first().content).catch(() => null);
+                }).then(collected => {
+                    const message = collected.first();
+                    message.delete();
+                    return message.content;
+                }).catch(() => null);
 
                 if (!questionPlaceholder) {
                     return interaction.followUp({ content: 'You did not provide a question placeholder in time.', ephemeral: true });
                 }
 
-                await interaction.followUp({ content: `Please provide the type for question ${i + 1} (Short, Paragraph, Number):`, ephemeral: true });
+                await interaction.editReply({ content: `Please provide the type for question ${i + 1} (Short, Paragraph, Number):`, ephemeral: true });
                 const questionType = await interaction.channel.awaitMessages({
                     filter: m => m.author.id === interaction.user.id,
                     max: 1,
                     time: 60000,
                     errors: ['time']
-                }).then(collected => collected.first().content).catch(() => null);
+                }).then(collected => {
+                    const message = collected.first();
+                    message.delete();
+                    return message.content;
+                }).catch(() => null);
 
                 if (!questionType) {
                     return interaction.followUp({ content: 'You did not provide a question type in time.', ephemeral: true });
@@ -110,7 +122,7 @@ module.exports = {
                 await saveTicketQuestions(interaction.guild.id, variantName, i, questionTitle, questionPlaceholder, questionType, question);
             }
 
-            await interaction.followUp({ content: `Ticket variant "${variantName}" has been set up with ${questionCount} questions.`, ephemeral: true });
+            await interaction.editReply({ content: `Ticket variant "${variantName}" has been set up with ${questionCount} questions.`, ephemeral: true });
         } else if (interaction.options.getSubcommand() === 'log') {
             const logChannel = interaction.options.getChannel('channel');
             await saveLogChannel(interaction.guild.id, logChannel.id);
