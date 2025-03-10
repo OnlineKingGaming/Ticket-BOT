@@ -220,11 +220,6 @@ async function createTicketChannel(interaction, variantName, fields = null) {
   // Deselect the value in the embed
 }
 
-const tempDir = path.join(__dirname, 'temp');
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir);
-}
-
 // Function to close ticket
 async function closeTicket(interaction, channelId, reason = null) {
   try {
@@ -252,10 +247,10 @@ async function closeTicket(interaction, channelId, reason = null) {
       timestamp: msg.createdTimestamp
     }));
 
-    await saveTicketTranscript(interaction.guild.id, channelId, transcript).catch(console.error);
+    await saveTicketTranscript(interaction.guild.id, channelId, transcript);
 
     const transcriptText = transcript.map(msg => `[${new Date(msg.timestamp).toLocaleString()}] ${msg.author}: ${msg.content}`).join('\n');
-    const filePath = path.join(tempDir, `transcript_${channelId}.txt`);
+    const filePath = path.join(__dirname, `transcript_${channelId}.txt`);
     fs.writeFileSync(filePath, transcriptText);
 
     const attachment = new AttachmentBuilder(filePath);
@@ -299,7 +294,7 @@ async function saveTranscript(interaction, channelId) {
     await saveTicketTranscript(interaction.guild.id, channelId, transcript);
 
     const transcriptText = transcript.map(msg => `[${new Date(msg.timestamp).toLocaleString()}] ${msg.author}: ${msg.content}`).join('\n');
-    const filePath = path.join(tempDir, `transcript_${channelId}.txt`);
+    const filePath = path.join(__dirname, `transcript_${channelId}.txt`);
     fs.writeFileSync(filePath, transcriptText);
 
     const attachment = new AttachmentBuilder(filePath);
