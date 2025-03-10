@@ -1,3 +1,4 @@
+https://github.com/OnlineKingGaming/smartchat/raw/v0.1/dashboard/public/global_banner_raster_white.png
 # Discord Ticket System
 
 ## Setup Instructions
