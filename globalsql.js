@@ -178,6 +178,8 @@ async function createTicketChannel(interaction, variantName, fields = null) {
 
   const channel = await guild.channels.create(channelOptions);
 
+  await channel.setTopic(`Ticket ID: ${channel.id}`); // Set the topic with the ticket ID
+
   const embed = new EmbedBuilder()
     .setTitle('Ticket Created')
     .setDescription(`A staff member will be with you shortly, ${member.user.username}.`)
